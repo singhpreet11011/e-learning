@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useUser } from "@clerk/nextjs";
 import { LanguageCode, SUPPORTED_LANGUAGES } from "@/lib/translation";
 import { translateOnClient, batchTranslateOnClient } from "@/lib/translation";
 
@@ -19,14 +19,14 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const { data: session } = useSession();
+  const { user, isLoaded } = useUser();
   const [primaryLanguage, setPrimaryLanguage] = useState<LanguageCode | null>(null);
   const [secondaryLanguage, setSecondaryLanguage] = useState<LanguageCode | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
 
-  // Load user's language preferences from database
+  // Load user's language preferences
   useEffect(() => {
-    if (session?.user?.id) {
+    if (isLoaded && user?.id) {
       fetch("/api/user/language-preferences")
         .then((res) => res.json())
         .then((data) => {
@@ -38,7 +38,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
           }
         })
         .catch(console.error);
-    } else {
+    } else if (isLoaded && !user) {
       // Load from localStorage for non-authenticated users
       const stored = localStorage.getItem("languagePreferences");
       if (stored) {
@@ -47,7 +47,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         setSecondaryLanguage(secondary);
       }
     }
-  }, [session]);
+  }, [user, isLoaded]);
 
   const savePreferences = async () => {
     const preferences = {
@@ -55,7 +55,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       secondaryLanguage,
     };
 
-    if (session?.user?.id) {
+    if (user?.id) {
       // Save to database for authenticated users
       try {
         await fetch("/api/user/language-preferences", {

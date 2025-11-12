@@ -1,7 +1,6 @@
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { Navbar } from "@/components/layout/navbar";
 import { Button } from "@/components/ui/button";
@@ -13,23 +12,44 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
-  const session = await getServerSession(authOptions);
+  const user = await currentUser();
 
-  // Check if user is admin
-  if (!session?.user?.id) {
-    redirect("/auth/signin");
+  // Check if user is signed in
+  if (!user?.id) {
+    redirect("/sign-in");
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { isAdmin: true },
-  });
+  // Check if user is admin from publicMetadata
+  const isAdmin = user.publicMetadata?.isAdmin === true;
 
-  if (!user?.isAdmin) {
+  console.log("User ID:", user.id); // This should log: user_35NYbXdRpkBIHP8U0LBy971d45S
+  console.log("Public Metadata:", user.publicMetadata);
+  console.log("Is Admin:", isAdmin);
+
+  if (!isAdmin) {
+    // You can create a custom unauthorized page or redirect to home
     redirect("/");
   }
 
-  // Fetch all courses with stats
+  // Ensure user exists in database
+  await prisma.user.upsert({
+    where: { id: user.id },
+    update: {
+      email: user.emailAddresses[0]?.emailAddress,
+      name: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.username,
+      image: user.imageUrl,
+      isAdmin: isAdmin, // Sync admin status with database
+    },
+    create: {
+      id: user.id,
+      email: user.emailAddresses[0]?.emailAddress,
+      name: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.username,
+      image: user.imageUrl,
+      isAdmin: isAdmin, // Set admin status from Clerk
+    },
+  });
+
+  // Rest of your admin page code...
   const courses = await prisma.course.findMany({
     include: {
       _count: {
@@ -47,7 +67,7 @@ export default async function AdminPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar session={session} />
+      <Navbar />
       
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">

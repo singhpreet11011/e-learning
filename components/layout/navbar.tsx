@@ -1,32 +1,43 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Session } from "next-auth";
-import { signOut } from "next-auth/react";
+import { useRouter, usePathname } from "next/navigation";
+import { useUser, UserButton, SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/language-selector";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { BookOpen, GraduationCap, LayoutDashboard, LogOut, Settings, User } from "lucide-react";
+import { BookOpen, GraduationCap, LayoutDashboard } from "lucide-react";
+import { useEffect } from "react";
 
-interface NavbarProps {
-  session: Session | null;
-}
-
-export function Navbar({ session }: NavbarProps) {
+export function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
+  const { isLoaded, isSignedIn, user } = useUser();
 
-  const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push("/");
+  // Check admin from Clerk metadata
+  const isAdmin = user?.publicMetadata?.isAdmin === true;
+
+  // ✅ Smooth scroll helper
+  const scrollToCourses = () => {
+    const section = document.getElementById("available-courses");
+    if (section) {
+      section.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  // ✅ If redirected from another page with hash, scroll after load
+  useEffect(() => {
+    if (window.location.hash === "#available-courses") {
+      setTimeout(() => scrollToCourses(), 300);
+    }
+  }, [pathname]);
+
+  // ✅ Click handler for "Courses" button
+  const handleCoursesClick = () => {
+    if (pathname === "/") {
+      scrollToCourses();
+    } else {
+      router.push("/#available-courses");
+    }
   };
 
   return (
@@ -42,22 +53,19 @@ export function Navbar({ session }: NavbarProps) {
 
             {/* Main Navigation */}
             <div className="hidden md:flex items-center gap-4">
-              <Link href="/courses">
-                <Button variant="ghost" size="sm">
-                  <BookOpen className="h-4 w-4 mr-2" />
-                  Courses
-                </Button>
-              </Link>
+              {/* ✅ Fixed "Courses" scroll logic */}
+              <Button variant="ghost" size="sm" onClick={handleCoursesClick}>
+                <BookOpen className="h-4 w-4 mr-2" />
+                Courses
+              </Button>
 
-              {session && (
+              {isSignedIn && (
                 <Link href="/my-courses">
-                  <Button variant="ghost" size="sm">
-                    My Learning
-                  </Button>
+                  <Button variant="ghost" size="sm">My Learning</Button>
                 </Link>
               )}
 
-              {session?.user?.isAdmin && (
+              {isAdmin && (
                 <Link href="/admin">
                   <Button variant="ghost" size="sm">
                     <LayoutDashboard className="h-4 w-4 mr-2" />
@@ -70,55 +78,16 @@ export function Navbar({ session }: NavbarProps) {
 
           {/* Right Side Actions */}
           <div className="flex items-center gap-4">
-            {/* Language Selector */}
             <LanguageSelector />
 
-            {/* User Menu */}
-            {session?.user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={session.user.image || ""} alt={session.user.name || ""} />
-                      <AvatarFallback>
-                        {session.user.name?.charAt(0).toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{session.user.name}</p>
-                      <p className="text-xs leading-none text-muted-foreground">
-                        {session.user.email}
-                      </p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile">
-                      <User className="mr-2 h-4 w-4" />
-                      Profile
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings">
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            {!isLoaded ? (
+              <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
+            ) : isSignedIn ? (
+              <UserButton afterSignOutUrl="/" />
             ) : (
-              <Link href="/auth/signin">
+              <SignInButton mode="modal">
                 <Button>Sign In</Button>
-              </Link>
+              </SignInButton>
             )}
           </div>
         </div>

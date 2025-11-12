@@ -2,11 +2,30 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { BookOpen, Clock, Users } from "lucide-react";
-import { CourseWithRelations } from "@/types";
+import { BookOpen, Users } from "lucide-react";
+import { Prisma } from "@prisma/client";
+import { SignInButton } from "@clerk/nextjs"; // ✅ Added
+
+type CourseWithRelations = Prisma.CourseGetPayload<{
+  include: {
+    _count: {
+      select: {
+        chapters: true;
+        lessons: true;
+        enrollments: true;
+      };
+    };
+  };
+}>;
 
 interface CourseGridProps {
   courses: CourseWithRelations[];
@@ -14,8 +33,12 @@ interface CourseGridProps {
   isAuthenticated: boolean;
 }
 
-export function CourseGrid({ courses, enrolledCourseIds, isAuthenticated }: CourseGridProps) {
-  if (courses.length === 0) {
+export function CourseGrid({
+  courses,
+  enrolledCourseIds,
+  isAuthenticated,
+}: CourseGridProps) {
+  if (!courses || courses.length === 0) {
     return (
       <div className="text-center py-12">
         <BookOpen className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -31,7 +54,7 @@ export function CourseGrid({ courses, enrolledCourseIds, isAuthenticated }: Cour
     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {courses.map((course) => {
         const isEnrolled = enrolledCourseIds.includes(course.id);
-        
+
         return (
           <Card key={course.id} className="flex flex-col">
             <CardHeader>
@@ -50,7 +73,7 @@ export function CourseGrid({ courses, enrolledCourseIds, isAuthenticated }: Cour
                 {course.description}
               </CardDescription>
             </CardHeader>
-            
+
             <CardContent className="flex-1">
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1">
@@ -63,7 +86,7 @@ export function CourseGrid({ courses, enrolledCourseIds, isAuthenticated }: Cour
                 </div>
               </div>
             </CardContent>
-            
+
             <CardFooter>
               {isEnrolled ? (
                 <Link href={`/courses/${course.id}`} className="w-full">
@@ -71,12 +94,19 @@ export function CourseGrid({ courses, enrolledCourseIds, isAuthenticated }: Cour
                     Continue Learning
                   </Button>
                 </Link>
-              ) : (
-                <Link href={isAuthenticated ? `/courses/${course.id}` : "/auth/signin"} className="w-full">
+              ) : isAuthenticated ? (
+                <Link href={`/courses/${course.id}`} className="w-full">
                   <Button className="w-full" variant="outline">
-                    {isAuthenticated ? "View Course" : "Sign in to Enroll"}
+                    View Course
                   </Button>
                 </Link>
+              ) : (
+                // ✅ Fixed: Opens Clerk Sign In Moda
+                <SignInButton mode="modal">
+                  <Button className="w-full" variant="outline">
+                    Sign In to Enroll
+                  </Button>
+                </SignInButton>
               )}
             </CardFooter>
           </Card>

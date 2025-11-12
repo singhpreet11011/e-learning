@@ -1,20 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
+// ✅ Optional helper to check admin role
+async function isAdmin() {
+  const user = await currentUser();
+  return user?.publicMetadata?.role === "admin";
+}
+
+// ===================== GET =====================
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // 🔐 Optional: restrict GET to admins only
+    const admin = await isAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const preferences = await prisma.userLanguagePreference.findUnique({
-      where: {
-        userId: session.user.id,
-      },
+      where: { userId: user.id },
     });
 
     return NextResponse.json({
@@ -30,29 +40,45 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// ===================== POST =====================
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await currentUser();
 
-    if (!session?.user?.id) {
+    if (!user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // 🔐 Example: allow both normal users and admins
+    // const admin = await isAdmin();
+    // if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
     const { primaryLanguage, secondaryLanguage } = await request.json();
 
-    const preferences = await prisma.userLanguagePreference.upsert({
-      where: {
-        userId: session.user.id,
-      },
+    // Ensure user exists in database
+    await prisma.user.upsert({
+      where: { id: user.id },
       update: {
-        primaryLanguage,
-        secondaryLanguage,
+        email: user.emailAddresses[0]?.emailAddress,
+        name: user.firstName
+          ? `${user.firstName} ${user.lastName || ""}`.trim()
+          : user.username,
+        image: user.imageUrl,
       },
       create: {
-        userId: session.user.id,
-        primaryLanguage,
-        secondaryLanguage,
+        id: user.id,
+        email: user.emailAddresses[0]?.emailAddress,
+        name: user.firstName
+          ? `${user.firstName} ${user.lastName || ""}`.trim()
+          : user.username,
+        image: user.imageUrl,
       },
+    });
+
+    const preferences = await prisma.userLanguagePreference.upsert({
+      where: { userId: user.id },
+      update: { primaryLanguage, secondaryLanguage },
+      create: { userId: user.id, primaryLanguage, secondaryLanguage },
     });
 
     return NextResponse.json({
