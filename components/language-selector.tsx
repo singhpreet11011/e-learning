@@ -25,6 +25,12 @@ import { SUPPORTED_LANGUAGES, LanguageCode } from "@/lib/translation";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
+interface Language {
+  code: string;
+  name: string;
+  nativeName?: string;
+}
+
 export function LanguageSelector() {
   const {
     primaryLanguage,
@@ -61,10 +67,13 @@ export function LanguageSelector() {
     setOpen(false);
   };
 
-  const getLanguageName = (code: LanguageCode | null) => {
+  // ✅ Clean and type-safe now
+  const getLanguageName = (code: string | null): string | null => {
     if (!code) return null;
-    const lang = SUPPORTED_LANGUAGES.find((l) => l.code === code);
-    return lang?.nativeName || lang?.name;
+    const lang: Language | undefined = SUPPORTED_LANGUAGES.find(
+      (l) => l.code === code
+    );
+    return lang ? lang.nativeName || lang.name : null;
   };
 
   const renderCurrentLanguages = () => {
@@ -107,8 +116,9 @@ export function LanguageSelector() {
             English.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="grid gap-4 py-4">
+          {/* Primary Language */}
           <div className="grid gap-2">
             <Label htmlFor="primary">Primary Language</Label>
             <div className="flex gap-2">
@@ -144,6 +154,7 @@ export function LanguageSelector() {
             </div>
           </div>
 
+          {/* Secondary Language */}
           <div className="grid gap-2">
             <Label htmlFor="secondary">Secondary Language (Optional)</Label>
             <div className="flex gap-2">
